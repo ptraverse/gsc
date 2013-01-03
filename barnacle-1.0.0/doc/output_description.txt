@@ -1,0 +1,538 @@
+Note: symbols of the form "${var}" can be thought of as place-holders or
+ variable names, and will be replaced with values as described in actual output
+
+Each event is output as a "Group" of "Members"
+Each Group has one header line, and one line for each Member
+Members fall into two broad categorizations: "Split Alignment Members" and
+ "Gapped Alignment Members"
+Members belong to the same group if they involve the same chromosomes, and
+  both of their junction coordinates are within a read length of each other
+  and in the same upstream/downstream orientation (see explanation of
+  ${junction_coord} variable)
+
+Notes on coordinate ordering:
+- CONTIG coords are always in ascending order by start, so
+  ctg_start1 < ctg_start2, ctg_start1 < ctg_end1, ctg_start2 < ctg_end2
+- GENOMIC coords are ordered by strand:
+  ctg_start aligns to gen_start, ctg_end aligns to gen_end, etc.
+- so, if the alignment block is on the positive strand,
+  gen_start < gen_end
+- and, if the alignment block is on the negative strand,
+  gen_start > gen_end
+
+The space-delimited fields of a group header line are:
+
+GRPNUM:${group_id}
+TYPE:${event_type}
+TOPOLOGIES:${member_topologies}
+COORDS:${gen_coords_str}
+MEMBERS:${number_of_members_in_group}
+CONTIGS:${number_of_contigs_in_group}
+CLENS:${contig_lengths}
+PAIR_TO_GENOME_0:N/A
+PAIR_TO_GENOME_10:N/A
+RNA:${structural_RNA_flag}
+STATUS:${filter_status}
+LIB:${library_id}
+VER:${barnacle_output_version}
+
+Explanation of fields:
+
+GRPNUM:${group_id}
+  ${group_id} = a non-negative integer identifying the group uniquely within
+    a library; valid values can be defined with the regular expression:
+    "0\|[1-9][0-9]*"
+TYPE:${event_type}
+  ${event_type} = the event type of the group; either fusion, ptd, or itd
+TOPOLOGIES:${member_topologies}
+  ${member_topologies} = a comma-delimited list of the alignment topologies(s)
+    of all the members of the group
+COORDS:${gen_coords_str}
+  The genomic coordinates of the event (based on contig-to-genome alignments
+    of all members)
+  For groups with any Split Alignment Members:
+    ${gen_coords_str} = "${gen_coords_1};${gen_coords_2}"
+  For groups with only Gapped Alignment Members:
+    ${gen_coords_str} = "${gen_coords}"
+  ${gen_coords_1}, ${gen_coords_2}, and ${gen_coords} are all of the form:
+    "chr${chromosome_id}:${gen_start}-${gen_end}"
+  ${gen_start} and ${gen_end} are defined to span the entire range of genomic
+    coordinates of all the members of the group
+MEMBERS:${number_of_members_in_group}
+  ${number_of_members_in_group} = the number of members in the group, if some
+    members have been filtered, the pre-filtering number will appear in
+    parentheses
+CONTIGS:${number_of_contigs_in_group}
+  ${number_of_contigs_in_group} = the number of distinct contigs found in the
+    members of the group
+CLENS:${contig_lengths}
+  ${contig_lengths} = a comma-delimited list of the lengths of the contigs in
+    the members of the group, sorted in descending order
+PAIR_TO_GENOME_0:N/A
+  not used
+PAIR_TO_GENOME_10:N/A
+  not used
+RNA:${structural_RNA_flag}
+  "Y" if either breakpoint falls within an annotated structural RNA, "N"
+    otherwise
+STATUS:${filter_status}
+  ${filter_status} = "PASS" if the event passes all the filters used,
+    "FAIL(${fail_reasons})" otherwise
+  ${fail_reasons} = a comma-delimited list of the filters that the event failed,
+    sorted alphabetically
+LIB:${library_id}
+  ${library_id} = the id of the library the event was found in
+VER:${barnacle_output_version}
+  ${barnacle_output_version} = the output version of the code run that
+    produced this output file, this should be the same as the name of the
+    directory that this file is found in, under the "barnacle" directory
+
+The space-delimited fields of a Split Alignment member line are:
+
+${group_id}${member_id})
+TOPOLOGY:${member_topology}
+CONTIG:${ctg_id}(${ctg_len}bp:${k_form_len})
+ALIGN_A:ctg:${ctg_align_1}=${gen_align_1};AF:${align_fract_1},PID:${pid_1}
+ALIGN_B:ctg:${ctg_align_2}=${gen_align_2};AF:${align_fract_2},PID:${pid_2}
+ALIGNER:split
+READ_TO_CTG:${read_to_ctg}
+READ_TO_CTG_UNIQUE:${strong_read_to_ctg}
+NUM_GROUPS:${num_groups}
+OVERLAPPING_GENES:${genes_1};${genes_2}
+NEARBY_GENES:${near_genes_1};${near_genes_2}
+BREAKPOINT_GENES:${bp_genes_1};${bp_genes_2}
+ENDS:${gene_end_1};${gene_end_2}
+REPEATS:${repeats_1};${repeats_2}
+META:${meta_data}
+BREAKPOINTS:${junction_from}-${junction_to}
+AVG_READ_TO_CTG:${avg_read_to_ctg}
+AVG_READ_TO_CTG_UNIQUE:${strong_avg_read_to_ctg}
+BLOCKS:${gen_blocks_1};${gen_blocks_2}
+
+Explanation of fields:
+
+${group_id}${member_id})
+  ${group_id} = the id of the group the member is in (see ${group_id} in the
+    group header line explanation)
+  ${member_id} = a string identifying the member uniquely within its group;
+    valid values can be defined with the regular expression:
+    "[a-z]+"
+TOPOLOGY:${member_topology}
+  ${member_topology} = the alignment topology of the member, e.g.
+    interchr, end-duplication, junction-duplication, local-inversion,
+    intrachr-opp-strand, intrachr-same-strand, intrachr-non-colinear,
+    read-through
+CONTIG:${ctg_id}(${ctg_len}bp:${k_form_len})
+  ${ctg_id} = the id of the contig
+  ${ctg_len} = the length of the contig
+  ${k_form_len} = the length of the contig in the form "2k+x", where k is the
+    k-value used to assembly the contig
+ALIGN_A:ctg:${ctg_align_1}=${gen_align_1};AF:${align_fract_1},PID:${pid_1}
+  The alignment of the first piece of the contig to the genome
+  ${ctg_align_1} = "${ctg_start1}-${ctg_end1}(${ctg_span1}bp)"
+  ${ctg_span1} = ${ctg_end1} - ${ctg_start1} + 1
+  ${gen_align_1} = "${gen_coords1}(${gen_span1}bp,${strand1})"
+  ${gen_coords1} = "chr${chr_id1}:${gen_start1}-${gen_end1}"
+  ${gen_span1} = absolute_value(${gen_end1} - ${gen_start1}) + 1
+  ${strand1} = "+" or "-": the strand that the left portion of the contig
+    aligns to
+  ${align_fract_1} = the fraction of the contig that the first alignment
+    represents: ${ctg_span1} / ${ctg_len}
+  ${pid_1} = the percent identity of the first alignment, as calculated by
+    BLAT
+ALIGN_B:ctg:${ctg_align_2}=${gen_align_2};AF:${align_fract_2},PID:${pid_2}
+  The alignment of the second piece of the contig to the genome
+  ${ctg_align_2} = as ${ctg_align_1}, but for the second alignment
+  ${gen_align_2} = as ${gen_align_1}, but for the second alignment
+  ${align_fract_2} = as ${align_fract_1}, but for the second alignment
+  ${pid_2} = as ${pid_1}, but for the second alignment
+ALIGNER:split
+  Denotes that this is a Split Alignment member
+READ_TO_CTG:${read_to_ctg}
+  ${read_to_ctg} = the total number of read-to-contig alignments that
+    support the event (both "strong" and "weak")
+  i.e. the minimum read-depth in the "event region" determined when
+    calculating read-to-contig support
+READ_TO_CTG_UNIQUE:${strong_read_to_ctg}
+  ${strong_read_to_ctg} = the number of read-to-contig alignments that
+    "strongly" support the event
+  i.e. the minimum read-depth in the "event region" determined when
+    calculating read-to-contig support, only counting "strongly"
+    supporting reads
+  - a read-to-contig alignment is considered "strong" supprt for a contig if at
+    least 50% of the contigs that the read aligns to are in the same group as
+    that contig
+NUM_GROUPS:${num_groups}
+  ${num_groups} = the number of different groups this contig appears in
+OVERLAPPING_GENES:${genes_1};${genes_2}
+  ${genes_1} = a comma-delimited list of the genes overlapped by any blocks of
+    the first contig-to-genome alignment
+  ${genes_2} = a comma-delimited list of the genes overlapped by any blocks of
+    the second contig-to-genome alignment
+NEARBY_GENES:${near_genes_1};${near_genes_2}
+  ${near_genes_1} = if ${genes_1} is "none", a comma-delimited list of genes
+    not overlapping, but within 1000 bp of any blocks of the first
+    contig-to-genome alignment
+  ${near_genes_2} = as ${near_genes_1}, but for ${genes_2} and the second
+    contig-to-genome alignment
+BREAKPOINT_GENES:${bp_genes_1};${bp_genes_2}
+  ${bp_genes_1} = a comma-delimited list of the genes overlapping the first
+    breakpoint
+  ${bp_genes_2} = as ${bp_genes_1}, but for the second breakpoint
+ENDS:${gene_end_1};${gene_end_2}
+  Only present for fusion events
+  ${gene_end_1} = either "5'" or "3'", denoting which end of first gene is
+    involved in the fusion (see ${genes_1})
+  ${gene_end_2} = as ${gene_end_1}, but for the second gene (see ${genes_2})
+REPEATS:${repeats_1};${repeats_2}
+  ${repeats_1} and ${repeats_2} are both comma-delimited lists of the
+    repetitive regions (from the repeats file named in the configuration
+    file) that the genomic coordinates overlap
+META:${meta_data}
+  ${meta_data} = a comma-delimited list of the following fields:
+  CO:${ctg_overlap}bp(${ctg_overlap_fract})
+  CR:${ctg_rep_fract}
+  BD:${junc_dist}
+  TD:${gen_dist}
+  QG:${query_gap_count}
+  SP:${splice_count}
+  GF:${gap_found_flag}
+  MM:${multi_map_count}
+  EB:${exon_bounds}
+  ${ctg_overlap} = the amount that the two contig-to-genome alignments
+    overlap in contig coordinates, negative if they do not overlap at all:
+    ${ctg_end1} - ${ctg_start2} + 1
+  ${ctg_overlap_fract} = the fraction of the smaller contig-to-genome
+    alignment that the contig overlap represents, 0 if they do not overlap at all:
+    MAX( 0, (${ctg_overlap} / MIN( ${ctg_span1}, ${ctg_span2} )) )
+  ${ctg_rep_fract} = the fraction of the total contig length represented by the
+    two contig-to-genome alignments:
+    (${ctg_span1} + ${ctg_span2} - MAX( 0, ${ctg_overlap} )) / ${ctg_len}
+  if (${chr_id1} == ${chr_id2}):
+    ${junc_dist} = genomic distance between junction coordinates of the
+      alignments (see ${junction_from} and ${junction_to}, below):
+      abs(${jcoord_from} - ${jcoord_to})
+    ${gen_dist} = genomic distance between inner coordinates of
+      contig-to-genome alignments (negative if the blocks overlap):
+      if (MIN(${gen_start1},${gen_end1}) <= MIN(${gen_start2},${gen_end2}))
+        ${gen_dist} =
+          MIN(${gen_start2},${gen_end2}) - MAX(${gen_start1},${gen_end1})
+      else
+        ${gen_dist} =
+          MIN(${gen_start1},${gen_end1}) - MAX(${gen_start2},${gen_end2})
+  otherwise:
+    ${junc_dist} = ${gen_dist} = "N/A"
+  ${query_gap_count} =
+    0: neither contig-to-genome alignment contains a query gap
+    1: one of the contig-to-genome alignments contains a query gap
+    2: both of the contig-to-genome alignments contain a query gap
+  ${splice_count} =
+    0: neither contig-to-genome alignment is spliced
+    1: one of the contig-to-genome alignments is spliced
+    2: both of the contig-to-genome alignments are spliced
+  ${gap_found} = "Y" if any Gapped Alignment member was found for this contig,
+    "N" otherwise
+  ${multi_map_count} =
+    0: neither contig-to-genome alignment is multi-mapped
+    1: one of the contig-to-genome alignments is multi-mapped
+    2: both of the contig-to-genome alignments are multi-mapped
+  ${exon_bounds} =
+    0: neither breakpoint matches an annotated exon boundary
+    1: one of the breakpoints matches an annotated exon boundary
+    2: both of the breakpoints match annotated exon boundaries
+BREAKPOINTS:${junction_from}-${junction_to}
+  The genomic coordinates and orientation of the two breakpoints
+  ${junction_from} = "chr${chrom_from}:${jcoord_from}(${dir_from})"
+  ${junction_to} = "chr${chrom_to}:${jcoord_to}(${dir_to})"
+  The junction coordinates are sorted so that:
+    ${chrom_from} <= ${chrom_to}
+    if (${chrom_from} == ${chrom_to})
+      ${jcoord_from} <= ${jcoord_to}
+      if (${jcoord_from} == ${jcoord_to})
+        ${dir_from} = ${dir_to} = "up" OR
+        ${dir_from} = "up", ${dir_to} = "down" OR
+        ${dir_from} = ${dir_to} = "down"
+  one of ${jcoord_from}, ${jcoord_to} = gen_end1, the other = gen_start2
+  ${dir_from}, ${dir_to} = "up" or "down", denoting whether the rest of the
+    contig aligns (up)stream or (down)stream of jcoord
+AVG_READ_TO_CTG:${avg_read_to_ctg}
+  as ${read_to_ctg}, except the average read-depth in the "event region"
+    determined when calculating read-to-contig support
+AVG_READ_TO_CTG_UNIQUE:${strong_avg_read_to_ctg}
+  as ${strong_read_to_ctg}, except the average read-depth in the
+    "event region" determined when calculating read-to-contig support,
+    only counting "strongly" supporting reads
+BLOCKS:${gen_blocks_1};${gen_blocks_2}
+  ${gen_blocks_1} = the genomic coordinates of the blocks of the first
+    contig-to-genome alignment (see ${gen_align_1})
+  ${gen_blocks_2} = as ${gen_blocks_1}, but for the second contig-to-genome
+    alignment
+
+The space-delimited fields of a Gapped Alignment member line are:
+
+${group_id}${member_id})
+TOPOLOGY:${member_topology}
+CONTIG:${ctg_id}(${ctg_len}bp:${k_form_len})
+ALIGN_A:ctg:${ctg_align_1}=${gen_align_1};AF:${align_fract_1},PID:${pid_1}
+ALIGN_B:ctg:${ctg_align_2}=${gen_align_2};AF:${align_fract_2},PID:${pid_2}
+ALIGNER:gap
+READ_TO_CTG:${read_to_ctg}
+READ_TO_CTG_UNIQUE:${strong_read_to_ctg}
+NUM_GROUPS:${num_groups}
+OVERLAPPING_GENES:${genes}
+NEARBY_GENES:${near_genes}
+BREAKPOINT_GENES:${bp_genes}
+REPEATS:${repeats_1};${repeats_2}
+META:${meta_data}
+BREAKPOINTS:${junction_left}-${junction_right}
+AVG_READ_TO_CTG:${avg_read_to_ctg}
+AVG_READ_TO_CTG_UNIQUE:${strong_avg_read_to_ctg}
+BLOCKS:${gen_blocks_1};${gen_blocks_2}
+EVENT_SEQ:${event_sequence}
+INS_SEQ:${insertion_sequence}
+
+NOTE:
+  When a perfectly tandem duplication is present in a contig, the alignment
+  gap may make up some portion of the end of the first copy of the duplicated
+  sequence and some portion of the start of the second copy of the duplicated
+  sequence, rather than lining up with one or the other copy of the duplicated
+  sequence. If such a case is detected, the gap position is "adjusted" to line
+  up with one of the copies of the duplicated sequence.
+
+Explanation of fields:
+${group_id}${member_id})
+  ${group_id} = the id of the group the member is in (see ${group_id} in the
+    group header line explanation)
+  ${member_id} = a string identifying the member uniquely within its group;
+    valid values can be defined with the regular expression:
+    "[a-z]+"
+TOPOLOGY:${member_topology}
+  ${member_topology} = the alignment topology of the member, e.g.
+    gap-tandem-duplication, gap-nontandem-duplication,
+    gap-tandem-inverted_duplication, gap-nontandem-inverted_duplication,
+    gap-internal_inversion
+CONTIG:${ctg_id}(${ctg_len}bp:${k_form_len})
+  ${ctg_id} = the id of the contig
+  ${ctg_len} = the length of the contig
+  ${k_form_len} = the length of the contig in the form "2k+x", where k is the
+    k-value used to assembly the contig
+ALIGN_A:ctg:${ctg_align_1}=${gen_align_1};AF:${align_fract_1},PID:${pid_1}
+  ${ctg_align_1} = "${ctg_start1}-${ctg_end1}(${ctg_span1}bp)"
+    the contig coordinates of the initial alignment between the full contig
+    and the genome
+  ${ctg_span1} = ${ctg_end1} - ${ctg_start1} + 1
+  ${gen_align_1} = "${gen_coords1}(${gen_span1}bp,${strand1})"
+  ${gen_coords1} = "chr${chr_id}:${gen_start1}-${gen_end1}"
+    the genome coordinates of the initial alignment between the full contig
+    and the genome
+  ${gen_span1} = absolute_value(${gen_end1} - ${gen_start1}) + 1
+  ${strand1} = "+" or "-": the strand of the initial contig alignment
+  ${align_fract_1} = the fraction of the contig that the initial alignment
+    represents: (#match + #mismatch + #repmatch) / ${ctg_len}
+  ${pid_1} = the percent identity of the initial alignment, as calculated by
+    BLAT
+ALIGN_B:ctg:${ctg_align_2}=${gen_align_2};AF:${align_fract_2},PID:${pid_2}
+  ${ctg_align_2} = as ${ctg_align_1}, but for the secondary alignment:
+    the contig coordinates of the alignment between the gap sequence
+    and the contig (for duplications) or genome (for inversions)
+    - these coordinates represent where the gap "should" have been and only that
+      portion of the gap representing a duplication or inversion
+    - in a tandem duplication event (or tandem spanning gap), these
+      coordinates represent the downstream copy of the duplicated sequence
+    - in a non-tandem duplication event, the event coordinates represent the copy
+      of the duplicated sequence that is not aligned to the genome in the
+      original BLAT alignment
+    - in an inverted duplication event, the event coordinates represent the
+      inverted copy of the duplicated sequence
+    - in an inversion event, the event coordinates represent the inverted region
+  ${gen_align_2} = as ${gen_align_1}, but for the secondary alignment:
+    the effective genome coordinates of the alignment between the gap sequence
+    and the contig (for duplications) or genome (for inversions)
+  ${align_fract_2} = as ${align_fract_1}, but for the secondary alignment
+  ${pid_2} = as ${pid_1}, but for the secondary alignment
+ALIGNER:gap
+  Denotes that this is a Gapped Alignment member
+READ_TO_CTG:${read_to_ctg}
+  ${read_to_ctg} = the total number of read-to-contig alignments that
+    support the event (both "strong" and "weak")
+  i.e. the minimum read-depth in the "event region" determined when
+    calculating read-to-contig support
+READ_TO_CTG_UNIQUE:${strong_read_to_ctg}
+  ${strong_read_to_ctg} = the number of read-to-contig alignments that
+    "strongly" support the event
+  i.e. the minimum read-depth in the "event region" determined when
+    calculating read-to-contig support, only counting "strongly"
+    supporting reads
+  - a read-to-contig alignment is considered "strong" supprt for a contig if at
+    least 50% of the contigs that the read aligns to are in the same group as
+    that contig
+NUM_GROUPS:${num_groups}
+  ${num_groups} = the number of different groups this contig appears in
+OVERLAPPING_GENES:${genes}
+  ${genes} = a comma-delimited list of the genes overlapped by any blocks of
+    the initial contig-to-genome alignment
+NEARBY_GENES:${near_genes}
+  ${near_genes} = if ${genes} is "none", a comma-delimited list of genes
+    not overlapping, but within 1000 bp of any blocks of the initial
+    contig-to-genome alignment
+BREAKPOINT_GENES:${bp_genes}
+  ${bp_genes_1} = a comma-delimited list of the genes overlapping the gap
+    position in the initial contig-to-genome alignment
+REPEATS:${repeats_1};${repeats_2}
+  ${repeats_1} and ${repeats_2} are both comma-delimited lists of the
+    repetitive regions (from the repeats file named in the configuration
+    file) that the genomic coordinates overlap
+META:${meta_data}
+  ${meta_data} = a comma-delimited list of the following fields:
+  CS:${ctg_strand}
+  ES:${event_strand}
+  GAP:${gap_coords}
+  NO_GAP:${before_gap_coords};${after_gap_coords}
+  DUP:${dup_coords}
+  DIST:${dup_dist}
+  TRIM:${up_trim_len};${down_trim_len}
+  FORM:${formation_type}
+  MM:${multi_map_count}
+  EB:${exon_bounds}
+  ${ctg_strand} = "+" or "-": the genome strand of the initial
+    contig-to-genome alignment
+  ${event_strand} = "+" or "-": the effective genome strand of the secondary gap
+    sequence to contig (or genome) alignment
+  ${gap_coords} = "${gap_start}-${gap_end}"
+    the contig coordinates of the gap in the initial contig-to-genome alignment
+  ${before_gap_coords} = "${before_start}-${before_end}"
+    the genomic coordinates of the portion of the initial contig-to-genome
+    alignment occurring before the adjusted gap ("before" according to contig
+    coordinates)
+    - if the gap is at the very beginning of the contig, ${before_start} and
+      ${before_end} both equal "N/A"
+  ${before_start} = "${gen_start1}": the genomic coordinate of the base aligned
+    to by the first base in the contig that is involved in the alignment
+  ${before_end} = the genomic coordinate of the base aligned to by the last
+    aligned base in the contig before the adjusted gap
+  ${after_gap_coords} = "${after_start}-${after_end}"
+    the genomic coordinates of the portion of the initial contig-to-genome
+    alignment occurring after the adjusted gap ("after" according to contig
+    coordinates)
+    - if the gap is at the very end of the contig, ${after_start} and
+      ${after_end} both equal "N/A"
+  ${after_start} = the genomic coordinate of the base aligned to by the first
+    aligned base in the contig after the adjusted gap
+  ${after_end} = "${gen_end1}": the genomic coordinate of the base aligned
+    to by the last base in the contig that is involved in the alignment
+  ${dup_coords} = "${dup_start}-${dup_end}"
+    - the contig coordinates that the adjusted gap aligned to
+    - in a tandem duplication event, these coordinates represent the upstream
+      copy of the duplicated sequence (${dup_start} < ${ctg_start2})
+    - in a non-tandem duplication event, these cordinates represent the copy of
+      the duplication sequence that aligned to the genome in the original
+      alignment.
+    - in an inverted duplication event, these coordinates represent the
+      non-inverted copy of the duplicated sequence
+    - for inversion events, these values should both be "N/A"
+  ${dup_dist} = the distance between the duplicated sequences in the contig
+    - for inversion events: dup_dist = "N/A"
+    - for duplication events:
+      - if (${ctg_start2} < ${dup_start}):
+          ${dup_dist} = ${dup_start} - ${ctg_end2} - 1
+      - if (${ctg_start2} > ${dup_start}):
+          ${dup_dist} = ${ctg_start2} - ${dup_end} - 1
+    - so, if the duplication is exactly tandem, ${dup_dist} = 0
+  ${up_trim_len}, ${down_trim_len}: When extracting the genomic coordinates of
+    the event sequence in the contig, the start and end indices might correspond
+    to small gaps. In this case the event sequence is trimmed from the ends
+    until the genomic coordinates of start and end indices can properly be
+    extracted. ${up_trim_len} and ${down_trim_len} indicate the number of bases
+    trimmed from upstream and downstream of the event sequence.
+  ${formation_type}: additional information regarding how the program has
+    processed the input contig for irregular cases such as tandem duplication
+    spanning gaps, novel insertion between non-tandem duplications, tandem
+    duplications that don't appear as tandem in BLAT alignments,etc. Full list of
+    these formations are as follows:
+      i) TSG: Tandem spanning gap. Gap originally appears as spanning a tandem
+        forward duplication. Event is reported as the contig downstream
+        copy of the duplication.
+      ii) SWAP: Ideal event is swapped. If the original gap in tandem forward
+        duplication is on the upstream side, event coordinates are swapped
+        with downstream copy to be consistent with other duplication events.
+      iii) TAN(${type}): Reports how tandemness is detected, ${type} can be:
+        a) Sh&Neg: The distance between the duplicated regions were negligibly
+             short (<2bp). Borders are modified accordingly. This is the
+             formation reported for an ideal tandem duplication.
+        b) Sh&Ir: The distance between the duplicated regions was short in
+             length relative to the duplications. However, a regular extension
+             would exceed the contig border, thus returned as tandem but borders
+             aren't modified.
+        c) Sh&NMod: The distance between duplicated regions is short enough to
+             support tandemness, but borders aren't modified since the extending
+             sequences were not similar enough.
+        d) Sh&Mod: Same as above; but this time extending sequences were similar
+             also, thus borders of the duplication are modified.
+        e) NMod: Distance between the duplicated regions were longer, but the
+             sequences could be extended to make them tandem, and the overall
+             extended sequences were similar enough to accept as tandem
+             duplication.
+          However extending sequences themselves weren't similar enough, thus the
+             borders are not modified.
+        f) Mod: Same as above, but in this case the extending sequences are
+             similar also, thus borders of the duplication are modified.
+      iv) NOVEL_INS: Novel insertion form. In a non-tandem duplication event,
+        this formation indicates that the insertion between duplicated
+        sequences has not been aligned to the genome in the original BLAT
+        alignment.
+        If it appears as NOVEL_INS(NC), indicates that majority of insertion
+        is unaligned yet there is a negligibly short overlap on either side
+        with another block
+        (This can happen due to similarity of several bases near the border)
+        This overlap length should be at most:
+        1 + (int) ( insertion_length * (1 - queryGapSimThreshold) / 2.0)
+      v) GE_${type}(${lengths}): Genomic extension forms in non-tandem
+        duplications.
+        a) POST: The insertion between two duplications corresponds to
+             the genomic region right after the duplicated sequence.
+        b) PRE: The insertion between the duplications corresponds to
+             the genomic region right before the duplicated sequence.
+        c) POST_NOVEL: Same as GE_POST formation but in this case there is a
+             novel insertion in the contig between the POST region
+             and downstream duplication.
+        d) NOVEL_PRE: Same as GE_PRE but there is a novel insertion in
+             contig between upstream duplication and PRE region.
+        e) POST_PRE: The insertion between two duplications corresponds to the
+             combination of sequences from POST and PRE regions in the genome.
+        f) POST_NOVEL_PRE: Same as GE_POST_PRE but there is a novel insertion in
+             the contig between the POST and PRE regions.
+        For all of these types the length of these genomic extensions or novel
+          sequences are given right after the formation type name.
+          (e.g.: POST(9)   NOVEL_PRE(4+22)   POST_NOVEL_PRE(10+5+12) )
+  ${multi_map_count} =
+    0: neither contig-to-genome alignment is multi-mapped
+    1: one of the contig-to-genome alignments is multi-mapped
+    2: both of the contig-to-genome alignments are multi-mapped
+  ${exon_bounds} =
+    0: neither breakpoint matches an annotated exon boundary
+    1: one of the breakpoints matches an annotated exon boundary
+    2: both of the breakpoints match annotated exon boundaries
+BREAKPOINTS:${junction_left}-${junction_right}
+  ${junction_left} = "chr${chr_id}:${jcoord_left}(down)"
+  ${junction_right} = "chr${chr_id}:${jcoord_right}(up)"
+    - the junction coordinates mark the ends of the event in genomic coordinates
+  ${jcoord_left} = min (${gen_start2}, ${gen_end2})
+  ${jcoord_right} = max (${gen_start2}, ${gen_end2})
+AVG_READ_TO_CTG:${avg_read_to_ctg}
+  as ${read_to_ctg}, except the average read-depth in the "event region"
+    determined when calculating read-to-contig support
+AVG_READ_TO_CTG_UNIQUE:${strong_avg_read_to_ctg}
+  as ${strong_read_to_ctg}, except the average read-depth in the
+    "event region" determined when calculating read-to-contig support,
+    only counting "strongly" supporting reads
+BLOCKS:${gen_blocks}
+  ${gen_blocks_1} = the genomic coordinates of the blocks of the initial
+    contig-to-genome alignment (see ${gen_align_1})
+  ${gen_blocks_2} = as ${gen_blocks_1}, but for the secondary gap-to-contig
+    or gap-to-genome alignment
+EVENT_SEQ:${event_sequence}
+  ${event_seq} = the contig sequence between ${ctg_start2} and ${ctg_end2}
+INS_SEQ:${insertion_sequence}
+  ${insert_seq} = For non-tandem duplication events, insert_seq indicates the
+    contig sequence between the duplicated regions. N/A for any other event type.
+

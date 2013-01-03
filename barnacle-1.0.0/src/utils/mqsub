@@ -1,0 +1,274 @@
+#!/usr/bin/python
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+# This script removes the Ganglia RPMs from the client nodes
+# Must exit with 0 on success or non-zero for any failures
+
+# (C)opyright 2003-2006 Bernard Li <bli@bcgsc.ca>
+
+import commands
+import getopt
+import sys
+import string
+import os
+import getpass
+
+def synopsis(): 
+    print """\
+    [--file batchfile]   Batchfile to process (required)
+
+    [--chdir directory]  Change to the specified directory before creating
+                         job scripts and/or creating subdirectory (see --mkdir)
+    [--help]             Print this help document
+    [--man]              Print the manpage
+    [--name jobname]     Specify the name of the job (if not specified then
+                         default will be username_job)
+    [--nosubmit]         Do not submit jobs, just create scripts and print
+                         qsub commands
+    [--mkdir]            Create a subdirectory to put scripts in using the
+                         job's name
+    [--qsub "qsub args"] Arguments to be passed to the qsub command (see man
+                         qsub for more details)
+    [--delay n]          Add a delay in between job submission, n equals number
+                         of seconds
+    """
+ 
+def usage(level):
+    if level == 2:
+        print """\
+\x1B[1mNAME\x1B[0m
+    mqsub - submit multiple jobs to SGE/PBS using qsub
+
+\x1B[1mSYNOPSIS\x1B[0m
+    usage: mqsub [options]
+        """
+        synopsis()
+        print """\
+
+\x1B[1mDESCRIPTION\x1B[0m
+    Jobs are submitted to SGE/PBS via qsub which expects one command or
+    steps of commands to be executed in series.  The reason for this
+    is it expects the user to write parallel programs which will do
+    the parallelization using either the MPI or PVM libraries.
+
+    \x1B[1mBatch File\x1B[0m
+    
+    The batchfile is simply a file with number of lines equaling the
+    number of jobs you want to submit. Each line contains the command
+    you wish to execute -- empty lines are ignored
+
+    \x1B[1mSubdirectory\x1B[0m
+    
+    With the --mkdir flag, you can specify whether you would like to
+    create a subdirectory to store all the intermediate script files.
+    If this argument is not specified, then all the scripts will be
+    created in your \x1B[1mcurrent working directory\x1B[0m.
+
+\x1B[1mSEE ALSO\x1B[0m
+    qsub(1B)
+
+\x1B[1mAUTHOR\x1B[0m
+    Bernard Li
+    Canada's Michael Smith Genome Sciences Centre
+    BC Cancer Research Centre
+    Vancouver, BC, Canada
+    http://www.bcgsc.ca
+    bli@bcgsc.ca
+        """
+        
+    else:    
+        print """\
+Multiple qsub for SGE/PBS version 0.1
+
+usage: mqsub [options]
+        """
+        synopsis()
+        sys.exit()
+
+def main():
+ 
+    status = 0
+    qsub_cmd = None
+ 
+    # if qsub command not found, quit
+    (status, qsub_cmd) = commands.getstatusoutput('which qsub')
+    if status:
+        print 'qsub command not in path, are you on the cluster?'
+        sys.exit(1)
+
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "f:chmn:", ["file=", "chdir=", "help", "man", "mkdir", "name=", "nosubmit", "qsub=", "delay="] )
+    except getopt.GetoptError:
+        # print help information and exit:
+        usage(1)
+        sys.exit(2)
+   
+    dirname = None 
+    filename = None
+    jobname = None
+    mkdir = 0
+    nosubmit = 0
+    qsub_args = None
+    delay = "1"
+    max_jobs = 5000
+    
+    for opt, arg in opts:
+        if opt in ("-f", "--file"):
+            filename = arg
+        if opt in ("-c", "--chdir"):
+            dirname = arg
+        if opt in ("-h", "--help"):
+            usage(1)
+            sys.exit()
+        # change verbiage for man    
+        if opt == "--man":
+            usage(2)
+            sys.exit()
+        if opt in ("-n", "--name"):
+            jobname = arg
+        if opt == "--nosubmit":
+            nosubmit = 1
+        if opt == "--mkdir":
+            mkdir = 1
+        if opt == "--qsub":
+            qsub_args = arg
+        if opt == "--delay":
+            delay = arg
+
+    # if user did not pass -f parameter, print usage
+    if filename == None:
+        usage(1)
+        sys.exit()
+
+    # open batchfile for parsing   
+    try:
+        bf = open(filename, 'r')
+    except IOError:
+        print 'Error opening file: '+filename
+        sys.exit(1)
+
+    count = 0
+
+    batch = bf.readlines()
+
+    bf.close()
+
+    if jobname == None:
+        jobname = getpass.getuser() + "_job"
+
+    # change directory to dirname before continuing
+    if dirname:
+        try:
+            os.chdir(dirname)
+        except OSError:
+            print 'Cannot change into directory: '+dirname+' - does it exist?'
+            sys.exit(1)  
+
+    # make a subdirectory with jobname as name if --mkdir is specified
+    if mkdir:
+        cwd = os.getcwd()
+        try:
+            os.mkdir(jobname)
+            os.chdir(jobname)
+        except OSError:
+            print 'Cannot create directory: '+cwd+'/'+jobname
+            sys.exit(1)
+ 
+    batch_count = len(batch)
+ 
+    if batch_count > max_jobs:
+        print 'Batch count: ' + `batch_count`
+    	print 'Your batch file contains more than ' + `max_jobs` + ' jobs, please consider batching the jobs up so you have less jobs in the system.  The system becomes unstable if there are too many jobs in the queue.  Thanks!'
+	sys.exit(1)
+
+    sge = 0
+    cwd = os.getcwd()
+
+    if qsub_cmd.find('sge') != -1:
+	sge = 1
+
+    for job in batch:
+        # check for empty lines and skip them
+        if job == "\n":
+            continue
+        else:
+            count=count+1
+
+        job = string.strip(job)
+
+        jobfile = cwd+"/"+jobname+"."+`count`+".sh"
+
+        try:
+            jf = open(jobfile, 'w')
+        except IOError:
+            print 'Error creating job script: '+jobfile
+            sys.exit(1)
+
+        jf.write("#! /bin/sh\n\n")
+        jf.write("# Automatically generated by mqsub\n\n")
+
+	if sge:
+        	jf.write("#$ -S /bin/sh\n\n")
+
+        jf.write(job)
+        jf.write("\n");
+        jf.close()
+
+        os.chmod(jobfile,0755)
+
+        if qsub_args:
+            qsub_cmd = "qsub "+qsub_args+" "+jobfile
+        else:
+            qsub_cmd = "qsub "+jobfile
+
+        if nosubmit:
+            print qsub_cmd
+        else:
+            os.system(qsub_cmd)
+            # if delay has been specified, sleep for the n seconds
+            if delay != "0":
+            	sleep_cmd = "sleep "+delay
+            	os.system(sleep_cmd)
+
+#    arrayfile = jobname+"_array.sh"
+#
+#    try:
+#        af = open(arrayfile, 'w')
+#    except IOError:
+#        print 'Error creating array job script: '+arrayfile+'.'
+#        sys.exit(1)
+#
+#    path = os.getcwd()
+#
+#    af.write("#! /bin/sh\n\n")
+#    af.write("# Automatically generated by mqsub\n\n")
+#    af.write("#$ -S /bin/sh\n")
+#    af.write("#$ -N "+jobname+"\n")
+#    af.write("\n")
+#    af.write(path+"/"+jobname+".$SGE_TASK_ID.sh")
+#    
+#    af.close()
+#
+#    # pass along qsub args if --qsub is specified
+#    if qsub_args:
+#        qsub_cmd = "qsub -t 1-"+`count`+" "+qsub_args+" "+arrayfile
+#    else:
+#        qsub_cmd = "qsub -t 1-"+`count`+" "+arrayfile
+#
+#    os.system(qsub_cmd)
+
+if __name__ == "__main__":
+    main()

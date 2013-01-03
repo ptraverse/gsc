@@ -1,0 +1,4 @@
+dwgsim downloaded from:
+http://sourceforge.net/apps/mediawiki/dnaa/index.php?title=Whole_Genome_Simulation
+
+Edited by Lucas Swanson to handle fragment length shorter than 2x read length

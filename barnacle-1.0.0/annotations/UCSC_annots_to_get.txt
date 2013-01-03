@@ -1,0 +1,7 @@
+knownGene.txt.gz
+kgXref.txt.gz
+knownGeneMrna.txt.gz
+ensGene.txt.gz
+ensemblToGeneName.txt.gz
+rmsk.txt.gz
+simpleRepeat.txt.gz
